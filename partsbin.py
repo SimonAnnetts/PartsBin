@@ -880,8 +880,9 @@ def datasheet_query(name, notes, narrow):
 
 class App(tk.Tk):
     def __init__(self, db_path):
-        super().__init__()
+        super().__init__(className="PartsBin")   # WM_CLASS, used by the Linux launcher
         self.title(f"PartsBin - {os.path.basename(db_path)}")
+        self._set_icon()
         sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
         self.geometry(f"{min(1600, int(sw * 0.9))}x{min(900, int(sh * 0.88))}")
         self.db = DB(db_path)
@@ -1027,6 +1028,16 @@ class App(tk.Tk):
         self.vars["quantity"].set("1")
 
     # ---- actions
+    def _set_icon(self):
+        """Window/taskbar icon from icon.png (all platforms) and icon.ico (Windows)."""
+        try:
+            self._icon = tk.PhotoImage(file=os.path.join(APP_DIR, "icon.png"))
+            self.iconphoto(True, self._icon)       # True: also the default for dialogs
+            if sys.platform.startswith("win"):
+                self.iconbitmap(default=os.path.join(APP_DIR, "icon.ico"))
+        except tk.TclError:
+            pass                                   # missing/unsupported icon: not fatal
+
     def sort_by(self, col):
         """Click a column heading to sort by it; click again to reverse."""
         self.sort_rev = (not self.sort_rev) if self.sort_col == col else False

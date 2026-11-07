@@ -77,6 +77,19 @@ python partsbin.py /path/to/my.db   # or any other database file
 
 The database is created on first run. Back it up by copying the file.
 
+### Linux launcher
+
+To start PartsBin from your applications menu, with its icon, run this once:
+
+```
+./install_launcher.sh              # add the launcher
+./install_launcher.sh --uninstall  # remove it
+```
+
+It writes `~/.local/share/applications/partsbin.desktop` containing this folder's
+absolute path, so run it again if you move PartsBin. If a `.venv` folder exists next to
+the program, the launcher uses it. Otherwise it uses the system `python3`.
+
 ## Using it
 
 ### Adding a part
@@ -202,6 +215,8 @@ Keys are stored in `partsbin_config.json` next to the program. That file is in
 | `partsbin.py` | The application: database, look-ups, GUI |
 | `pinout.py` | Pinout diagrams, PNG/SVG export, datasheet capture and the PDF viewer |
 | `datasheets.py` | Web search and verification for the datasheet finder |
+| `icon.png`, `icon.ico` | Application icon (all platforms; Windows title bar and taskbar) |
+| `install_launcher.sh` | Adds or removes the Linux applications-menu launcher |
 | `kicad_index.db` | Snapshot of the KiCad symbol libraries |
 | `parts.db` | Your catalogue (created on first run; not committed) |
 | `partsbin_config.json` | Your API keys (not committed) |
