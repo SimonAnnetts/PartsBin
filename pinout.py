@@ -355,6 +355,179 @@ class CaptureDialog(tk.Toplevel):
         self.on_done(png)
 
 
+class PdfViewer(tk.Toplevel):
+    """Built-in datasheet viewer (PyMuPDF): page navigation, zoom, text search."""
+
+    def __init__(self, parent, pdf_path, title, external=None):
+        super().__init__(parent)
+        self.title(f"Datasheet - {title}")
+        self.geometry("960x800")
+        self.doc = fitz.open(pdf_path)          # keep a reference while pages are in use
+        self.pno, self.zoom, self.fit = 0, 1.0, True
+        self.hits, self.hit_i, self.find_text = [], -1, ""
+        self._photo = None
+
+        bar = ttk.Frame(self)
+        bar.pack(fill="x", padx=6, pady=4)
+        ttk.Button(bar, text="<", width=3, command=lambda: self.goto(self.pno - 1)).pack(side="left")
+        self.page_var = tk.StringVar(value="1")
+        e = ttk.Entry(bar, textvariable=self.page_var, width=5, justify="right")
+        e.pack(side="left", padx=2)
+        e.bind("<Return>", lambda _e: self.goto(self._int(self.page_var.get(), 1) - 1))
+        self.total = ttk.Label(bar, text=f"/ {len(self.doc)}")
+        self.total.pack(side="left")
+        ttk.Button(bar, text=">", width=3, command=lambda: self.goto(self.pno + 1)).pack(side="left", padx=2)
+        ttk.Button(bar, text="-", width=3, command=lambda: self.set_zoom(self.zoom / 1.25)).pack(side="left", padx=(10, 0))
+        ttk.Button(bar, text="+", width=3, command=lambda: self.set_zoom(self.zoom * 1.25)).pack(side="left", padx=2)
+        ttk.Button(bar, text="Fit width", command=self.fit_width).pack(side="left", padx=2)
+        self.find_var = tk.StringVar()
+        fe = ttk.Entry(bar, textvariable=self.find_var, width=18)
+        fe.pack(side="left", padx=(14, 2))
+        fe.bind("<Return>", lambda _e: self.find(1))
+        ttk.Button(bar, text="Find", command=lambda: self.find(1)).pack(side="left")
+        ttk.Button(bar, text="Prev", width=5, command=lambda: self.find(-1)).pack(side="left", padx=2)
+        self.msg = ttk.Label(bar, foreground="gray")
+        self.msg.pack(side="left", padx=6)
+        if external:
+            ttk.Button(bar, text="Open externally", command=external).pack(side="right")
+
+        frame = ttk.Frame(self)
+        frame.pack(fill="both", expand=True, padx=6, pady=(0, 6))
+        self.cv = tk.Canvas(frame, bg="#888888", highlightthickness=0)
+        vs = ttk.Scrollbar(frame, command=self.cv.yview)
+        hs = ttk.Scrollbar(frame, orient="horizontal", command=self.cv.xview)
+        self.cv.configure(yscrollcommand=vs.set, xscrollcommand=hs.set)
+        vs.pack(side="right", fill="y")
+        hs.pack(side="bottom", fill="x")
+        self.cv.pack(fill="both", expand=True)
+        self.cv.bind("<MouseWheel>", self._wheel)
+        self.cv.bind("<Button-4>", lambda e: self.cv.yview_scroll(-3, "units"))
+        self.cv.bind("<Button-5>", lambda e: self.cv.yview_scroll(3, "units"))
+        self.cv.bind("<Control-Button-4>", lambda e: self.set_zoom(self.zoom * 1.25))
+        self.cv.bind("<Control-Button-5>", lambda e: self.set_zoom(self.zoom / 1.25))
+        self.cv.bind("<Enter>", lambda _e: self.cv.focus_set())
+        for key, step in (("<Prior>", -1), ("<Next>", 1), ("<Left>", -1), ("<Right>", 1)):
+            self.cv.bind(key, lambda _e, s=step: self.goto(self.pno + s))
+        self.bind("<Control-f>", lambda _e: fe.focus_set())
+        self.after(60, self.fit_width)
+
+    @staticmethod
+    def _int(text, default):
+        try:
+            return int(text)
+        except ValueError:
+            return default
+
+    def _wheel(self, e):
+        if e.state & 0x4:                     # Ctrl + wheel = zoom
+            self.set_zoom(self.zoom * (1.25 if e.delta > 0 else 0.8))
+        else:
+            self.cv.yview_scroll(-1 * (e.delta // 120 or (1 if e.delta > 0 else -1)), "units")
+
+    def fit_width(self):
+        self.update_idletasks()
+        page = self.doc[self.pno]
+        self.set_zoom(max(self.cv.winfo_width() - 4, 300) / page.rect.width)
+
+    def set_zoom(self, z):
+        self.zoom = min(max(z, 0.3), 4.0)
+        self.render()
+
+    def goto(self, pno, keep_hits=False):
+        if not 0 <= pno < len(self.doc):
+            return
+        self.pno = pno
+        if not keep_hits:
+            self.hits, self.hit_i = [], -1
+        self.render()
+        self.cv.yview_moveto(0)
+
+    def render(self):
+        page = self.doc[self.pno]
+        pix = page.get_pixmap(matrix=fitz.Matrix(self.zoom, self.zoom), alpha=False)
+        self._photo = tk.PhotoImage(data=pix.tobytes("png"))
+        self.cv.delete("all")
+        self.cv.create_image(0, 0, image=self._photo, anchor="nw")
+        self.cv.configure(scrollregion=(0, 0, pix.width, pix.height))
+        z = self.zoom
+        for i, r in enumerate(self.hits):
+            self.cv.create_rectangle(r.x0 * z, r.y0 * z, r.x1 * z, r.y1 * z, width=2,
+                                     outline="#ff8000" if i == self.hit_i else "#e0c000")
+        self.page_var.set(str(self.pno + 1))
+
+    def find(self, direction=1):
+        text = self.find_var.get().strip()
+        if not text:
+            return
+        if text != self.find_text:
+            self.find_text, self.hits, self.hit_i = text, [], -1
+            self.hits = list(self.doc[self.pno].search_for(text))
+            if self.hits:
+                self.hit_i = -1 if direction > 0 else len(self.hits)
+        i = self.hit_i + direction
+        if 0 <= i < len(self.hits):             # next hit on the same page
+            self.hit_i = i
+        else:                                    # walk to the next page that has one
+            n = len(self.doc)
+            for step in range(1, n + 1):
+                pno = (self.pno + direction * step) % n
+                hits = list(self.doc[pno].search_for(text))
+                if hits:
+                    self.pno, self.hits = pno, hits
+                    self.hit_i = 0 if direction > 0 else len(hits) - 1
+                    break
+            else:
+                self.msg.config(text="Not found (scanned PDFs have no searchable text)"
+                                if not any(self.doc[k].get_text().strip() for k in range(min(n, 3)))
+                                else "Not found")
+                return
+        self.render()
+        r = self.hits[self.hit_i]
+        bbox = self.cv.bbox("all")
+        if bbox:
+            self.cv.yview_moveto(max(0, (r.y0 * self.zoom - 80) / max(bbox[3], 1)))
+            self.cv.xview_moveto(max(0, (r.x0 * self.zoom - 80) / max(bbox[2], 1)))
+        self.msg.config(text=f"Page {self.pno + 1}, match {self.hit_i + 1}/{len(self.hits)}")
+
+
+def view_datasheet(parent, ref, title, on_fail, status=lambda m: None, external=None):
+    """Open a datasheet (URL or local path) in the built-in viewer. Downloads in a
+    background thread. on_fail(reason) is called if it cannot be shown (e.g. not a PDF)."""
+    if fitz is None:
+        return on_fail(NEED_FITZ)
+    local = local_path(ref)
+    if os.path.isfile(local):
+        try:
+            return PdfViewer(parent, local, title, external)
+        except Exception as e:
+            return on_fail(f"Could not open the PDF: {e}")
+    cached = _VIEW_CACHE.get(ref)
+    if cached and os.path.isfile(cached):
+        return PdfViewer(parent, cached, title, external)
+    status("Downloading datasheet...")
+    dest = os.path.join(tempfile.mkdtemp(prefix="partsbin_"), "datasheet.pdf")
+
+    def work():
+        try:
+            path = download_pdf(ref, dest)
+        except Exception as e:
+            msg = str(e)
+            return parent.after(0, lambda: on_fail(msg))
+
+        def show():
+            _VIEW_CACHE[ref] = path
+            status("Datasheet loaded.")
+            try:
+                PdfViewer(parent, path, title, external)
+            except Exception as e:
+                on_fail(f"Could not open the PDF: {e}")
+        parent.after(0, show)
+    threading.Thread(target=work, daemon=True).start()
+
+
+_VIEW_CACHE = {}
+
+
 def capture_from_datasheet(parent, url, title, on_done, status=lambda m: None):
     """Download in a background thread, then open the capture dialog."""
     if fitz is None:
@@ -371,8 +544,9 @@ def capture_from_datasheet(parent, url, title, on_done, status=lambda m: None):
         try:
             path = download_pdf(url, dest)
         except Exception as e:
-            parent.after(0, lambda: (status(f"Datasheet download failed: {e}"),
-                                     messagebox.showerror("Datasheet", f"{e}", parent=parent)))
+            msg = str(e)
+            parent.after(0, lambda: (status(f"Datasheet download failed: {msg}"),
+                                     messagebox.showerror("Datasheet", msg, parent=parent)))
             return
 
         def show():

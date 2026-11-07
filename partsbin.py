@@ -882,7 +882,8 @@ class App(tk.Tk):
     def __init__(self, db_path):
         super().__init__()
         self.title(f"PartsBin - {os.path.basename(db_path)}")
-        self.geometry("1150x650")
+        sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
+        self.geometry(f"{min(1600, int(sw * 0.9))}x{min(900, int(sh * 0.88))}")
         self.db = DB(db_path)
         self.current_id = None
         self.vars = {}
@@ -930,10 +931,11 @@ class App(tk.Tk):
         self._pin_job = None
         self._photo = None
 
-        cols = ("name", "type", "value", "package", "quantity", "location")
+        cols = ("name", "type", "value", "package", "quantity", "location", "description")
         self.tree = ttk.Treeview(left, columns=cols, show="headings", selectmode="browse")
-        for c, w in zip(cols, (140, 90, 80, 90, 55, 130)):
-            self.tree.heading(c, text=c.title())
+        self.sort_col, self.sort_rev = None, False     # None = type, then name
+        for c, w in zip(cols, (140, 90, 80, 90, 55, 130, 320)):
+            self.tree.heading(c, text=c.title(), command=lambda c=c: self.sort_by(c))
             self.tree.column(c, width=w, anchor="w")
         sb = ttk.Scrollbar(left, command=self.tree.yview)
         self.tree.configure(yscrollcommand=sb.set)
@@ -954,6 +956,13 @@ class App(tk.Tk):
             elif f in ("description", "pinout", "specs", "notes"):
                 w = tk.Text(right, height=4 if f != "description" else 3, width=40, wrap="word")
                 self.texts[f] = w
+            elif f == "datasheet":
+                v = tk.StringVar()
+                w = ttk.Frame(right)
+                ttk.Entry(w, textvariable=v).pack(side="left", fill="x", expand=True)
+                ttk.Button(w, text="View", width=6, command=self.open_datasheet).pack(
+                    side="left", padx=(4, 0))
+                self.vars[f] = v
             else:
                 v = tk.StringVar()
                 w = ttk.Entry(right, textvariable=v)
@@ -1018,12 +1027,36 @@ class App(tk.Tk):
         self.vars["quantity"].set("1")
 
     # ---- actions
+    def sort_by(self, col):
+        """Click a column heading to sort by it; click again to reverse."""
+        self.sort_rev = (not self.sort_rev) if self.sort_col == col else False
+        self.sort_col = col
+        self.refresh()
+
+    @staticmethod
+    def _short(text, n=60):
+        """First line/part of a description for the grid, with '...' if cut."""
+        t = " ".join((text or "").split())
+        return t if len(t) <= n else t[:n].rstrip() + "..."
+
     def refresh(self):
         self.tree.delete(*self.tree.get_children())
-        for row in self.db.search(self.search.get()):
+        rows = self.db.search(self.search.get())
+        if self.sort_col:
+            col = self.sort_col
+            # blanks always last; quantity sorts numerically (unknown '?' counts as lowest)
+            rows = sorted(rows, key=lambda r: (
+                r[col] in ("", None), r[col] if col == "quantity" else str(r[col]).lower()),
+                reverse=self.sort_rev)
+            if self.sort_rev:      # reverse flips blanks to the front; put them back last
+                rows.sort(key=lambda r: r[col] in ("", None))
+        for c in self.tree["columns"]:
+            self.tree.heading(c, text=c.title() + (
+                (" \u25bc" if self.sort_rev else " \u25b2") if c == self.sort_col else ""))
+        for row in rows:
             self.tree.insert("", "end", iid=str(row["id"]), values=(
                 row["name"], row["type"], row["value"], row["package"],
-                qty_text(row["quantity"]), row["location"]))
+                qty_text(row["quantity"]), row["location"], self._short(row["description"])))
         if self.current_id and self.tree.exists(str(self.current_id)):
             self.tree.selection_set(str(self.current_id))
 
@@ -1213,11 +1246,24 @@ class App(tk.Tk):
             self.status.set("Local PDF set. Save the part, then use Capture from datasheet.")
 
     def open_datasheet(self):
-        url = self.vars["datasheet"].get().strip()
-        if url.startswith("http"):
-            webbrowser.open(url)
-        elif os.path.isfile(pinout.local_path(url)):
-            path = pinout.local_path(url)
+        """View button: built-in PDF viewer; falls back to the browser/system viewer."""
+        ref = self.vars["datasheet"].get().strip()
+        if not ref:
+            self.status.set("No datasheet link stored for this part.")
+            return
+        title = self.vars["name"].get().strip() or "datasheet"
+        pinout.view_datasheet(
+            self, ref, title,
+            on_fail=lambda why: (self.status.set(f"Built-in viewer unavailable: {why[:90]}"),
+                                 self.open_external()),
+            status=self.status.set, external=self.open_external)
+
+    def open_external(self):
+        ref = self.vars["datasheet"].get().strip()
+        if ref.startswith("http"):
+            webbrowser.open(ref)
+        elif os.path.isfile(pinout.local_path(ref)):
+            path = pinout.local_path(ref)
             if sys.platform.startswith("win"):
                 os.startfile(path)
             else:
