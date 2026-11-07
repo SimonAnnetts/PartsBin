@@ -1534,4 +1534,10 @@ if __name__ == "__main__":
         else:
             download_and_build()
         sys.exit(0)
+    if sys.platform.startswith("win"):
+        try:    # own taskbar identity, so Windows shows our icon rather than Python's
+            import ctypes
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("PartsBin.App")
+        except Exception:
+            pass
     App(sys.argv[1] if len(sys.argv) > 1 else DEFAULT_DB).mainloop()

@@ -77,6 +77,20 @@ python partsbin.py /path/to/my.db   # or any other database file
 
 The database is created on first run. Back it up by copying the file.
 
+### Windows shortcut
+
+Double-click `install_launcher.cmd` to add PartsBin to the Start menu, with its icon and
+no console window. To also put a shortcut on the Desktop, or to remove the shortcuts,
+run it from a terminal:
+
+```
+install_launcher.cmd -Desktop
+install_launcher.cmd -Uninstall
+```
+
+It uses a `.venv` folder next to the program if there is one, otherwise `pythonw` or the
+`py` launcher from your Python install. Run it again if you move PartsBin.
+
 ### Linux launcher
 
 To start PartsBin from your applications menu, with its icon, run this once:
@@ -217,6 +231,7 @@ Keys are stored in `partsbin_config.json` next to the program. That file is in
 | `datasheets.py` | Web search and verification for the datasheet finder |
 | `icon.png`, `icon.ico` | Application icon (all platforms; Windows title bar and taskbar) |
 | `install_launcher.sh` | Adds or removes the Linux applications-menu launcher |
+| `install_launcher.ps1`, `install_launcher.cmd` | Adds or removes the Windows shortcuts (the `.cmd` is the double-click entry point) |
 | `kicad_index.db` | Snapshot of the KiCad symbol libraries |
 | `parts.db` | Your catalogue (created on first run; not committed) |
 | `partsbin_config.json` | Your API keys (not committed) |
