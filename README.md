@@ -1,7 +1,7 @@
 # PartsBin
 
-A desktop catalogue of the electronic components in my drawers and boxes. It is a
-Python + Tkinter application on top of a single SQLite file, and it runs on Linux and
+A desktop catalogue of the electronic components in my drawers and boxes, because I got tired of never being able to find anything!
+It is a Python + Tkinter application on top of a single SQLite file, and it runs on Linux and
 Windows. Add parts one at a time or paste in a whole list, and PartsBin looks up the
 type, value, description, pinout and datasheet for you.
 
