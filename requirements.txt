@@ -1,0 +1,4 @@
+# Optional: PNG export of generated pinouts and capture of figures from datasheet PDFs.
+# The app runs without it (SVG export and the on-screen diagram need nothing extra).
+# Tested with the distro package python3-fitz 1.19.2; pip install pymupdf also works.
+pymupdf
