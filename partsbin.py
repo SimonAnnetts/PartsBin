@@ -1440,7 +1440,7 @@ class App(tk.Tk):
         hint_var = tk.StringVar(value="Auto-detect")
         ttk.Combobox(hint_row, textvariable=hint_var, state="readonly", width=18,
                      values=["Auto-detect"] + [t for t in TYPES if t]).pack(side="left", padx=4)
-        ttk.Label(hint_row, text="(narrows the search; a line can override with 'type: name')",
+        ttk.Label(hint_row, text="(a line can override: 'type: name')",
                   foreground="gray").pack(side="left")
         loc_row = ttk.Frame(w)
         loc_row.pack(fill="x", padx=8, pady=2)

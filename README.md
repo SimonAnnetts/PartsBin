@@ -5,6 +5,9 @@ Python + Tkinter application on top of a single SQLite file, and it runs on Linu
 Windows. Add parts one at a time or paste in a whole list, and PartsBin looks up the
 type, value, description, pinout and datasheet for you.
 
+
+![PartsBin main window](AppPic.jpg)
+
 ## Features
 
 - **Catalogue** of semiconductors and passives: name, type, value, package,
@@ -100,6 +103,8 @@ NE555
 Op-amp: TL072
 # lines starting with # are ignored
 ```
+
+![Bulk import dialog](AppPicImport.jpg)
 
 - Fields can be separated by commas, semicolons or tabs. `10x name @ place` also works.
 - **No quantity means unknown** (`?`), not 1, so you can import a list before counting.
